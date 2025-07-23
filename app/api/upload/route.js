@@ -12,13 +12,8 @@ export async function POST(req) {
     const formData = await req.formData();
     const file = formData.get('file');
 
-    if (!file || !file.name || typeof file.arrayBuffer !== 'function') {
-      return NextResponse.json({ error: '📂 Archivo inválido o no recibido' }, { status: 400 });
-    }
-
-    const mimeType = file.type || '';
-    if (!mimeType.startsWith('image/')) {
-      return NextResponse.json({ error: '❌ Solo se permiten archivos de imagen' }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: 'Archivo no recibido' }, { status: 400 });
     }
 
     const arrayBuffer = await file.arrayBuffer();
@@ -28,12 +23,10 @@ export async function POST(req) {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'estadoMaquinas',
-          public_id: file.name ? file.name.split('.')[0] : `img_${Date.now()}`,
-          resource_type: 'image',
+          public_id: file.name.split('.')[0],
         },
         (error, result) => {
           if (error) {
-            console.error('❌ Error en Cloudinary:', error);
             reject(error);
           } else {
             resolve(result);
@@ -47,6 +40,6 @@ export async function POST(req) {
     return NextResponse.json({ url: result.secure_url });
   } catch (error) {
     console.error('❌ Error al subir imagen:', error);
-    return NextResponse.json({ error: 'Fallo inesperado al subir imagen' }, { status: 500 });
+    return NextResponse.json({ error: 'Fallo al subir imagen' }, { status: 500 });
   }
 }
