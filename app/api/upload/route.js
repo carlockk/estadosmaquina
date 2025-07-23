@@ -18,36 +18,34 @@ export async function POST(req) {
     return NextResponse.json({ error: 'Archivo no recibido' }, { status: 400 });
   }
 
-  const tempDir = join(process.cwd(), 'temp');
-  const tempPath = join(tempDir, file.name);
-
   try {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    // ✅ Ruta completa al archivo temporal
+    const tempDir = join(process.cwd(), 'temp');
+    const tempPath = join(tempDir, file.name);
+
+    // ✅ Crea la carpeta temp si no existe
     if (!existsSync(tempDir)) {
       await mkdir(tempDir);
     }
 
+    // ✅ Guarda el archivo temporal
     await writeFile(tempPath, buffer);
 
+    // ✅ Sube a Cloudinary
     const result = await cloudinary.uploader.upload(tempPath, {
       folder: 'estadoMaquinas',
       public_id: file.name.split('.')[0],
     });
 
+    // ✅ Elimina archivo temporal
+    await unlink(tempPath);
+
     return NextResponse.json({ url: result.secure_url });
   } catch (error) {
     console.error('❌ Error al subir imagen:', error);
     return NextResponse.json({ error: 'Fallo al subir imagen' }, { status: 500 });
-  } finally {
-    // ✅ Siempre intenta eliminar el archivo temporal
-    if (existsSync(tempPath)) {
-      try {
-        await unlink(tempPath);
-      } catch (err) {
-        console.warn('⚠️ No se pudo eliminar el archivo temporal:', err.message);
-      }
-    }
   }
 }
