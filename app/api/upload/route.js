@@ -12,8 +12,15 @@ export async function POST(req) {
     const formData = await req.formData();
     const file = formData.get('file');
 
+    // 🔍 DEBUG: Verifica que Cloudinary esté bien configurado
+    console.log('🧪 ENV:', {
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      hasSecret: !!process.env.CLOUDINARY_API_SECRET,
+    });
+
     if (!file || typeof file.arrayBuffer !== 'function') {
-      console.log('🧪 FILE INVALID:', file);
+      console.log('❌ Archivo inválido:', file);
       return NextResponse.json({ error: 'Archivo no válido' }, { status: 400 });
     }
 
@@ -24,7 +31,7 @@ export async function POST(req) {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
           folder: 'estadoMaquinas',
-          public_id: file.name?.split('.')[0] || `img_${Date.now()}`,
+          public_id: `img_${Date.now()}`, // ✅ Public ID seguro
           resource_type: 'image',
         },
         (error, result) => {
