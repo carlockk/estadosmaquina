@@ -1,192 +1,55 @@
-'use client';
+import { v2 as cloudinary } from 'cloudinary';
+import { Readable } from 'stream';
+import { NextResponse } from 'next/server';
 
-import { useState, useRef } from 'react';
-import {
-  TextField,
-  Button,
-  MenuItem,
-  Stack,
-  Typography,
-  CircularProgress,
-  Box,
-  IconButton,
-} from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import dayjs from 'dayjs';
-import DeleteIcon from '@mui/icons-material/Close';
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-const estados = ['Activa', 'En Mantenimiento', 'Fuera de Servicio'];
+function bufferToStream(buffer) {
+  const readable = new Readable();
+  readable.push(buffer);
+  readable.push(null);
+  return readable;
+}
 
-export default function CrearMaquina() {
-  const [formData, setFormData] = useState({
-    nombre: '',
-    ubicacion: '',
-    estado: '',
-    fecha: dayjs(),
-  });
-  const [imagen, setImagen] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [cargando, setCargando] = useState(false);
-  const [mensaje, setMensaje] = useState('');
-  const inputRef = useRef();
+export async function POST(req) {
+  try {
+    const formData = await req.formData();
+    const file = formData.get('file');
 
-  const handleChange = (e) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleFecha = (nuevaFecha) => {
-    setFormData((prev) => ({ ...prev, fecha: nuevaFecha }));
-  };
-
-  const handleImagen = (e) => {
-    const archivo = e.target.files[0];
-    if (archivo) {
-      setImagen(archivo);
-      setPreviewUrl(URL.createObjectURL(archivo));
+    if (!file) {
+      return NextResponse.json({ error: 'Archivo no recibido' }, { status: 400 });
     }
-  };
 
-  const eliminarImagen = () => {
-    setImagen(null);
-    setPreviewUrl(null);
-    inputRef.current.value = null; // Limpia el input file
-  };
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
 
-  const handleSubmit = async () => {
-    setMensaje('');
-    if (!imagen) return setMensaje('⚠️ Debes subir una imagen');
-    setCargando(true);
-
-    try {
-      const imgData = new FormData();
-      imgData.append('file', imagen);
-
-      const resUpload = await fetch('/api/upload', {
-        method: 'POST',
-        body: imgData,
-      });
-
-      const uploadData = await resUpload.json();
-
-      if (!resUpload.ok || !uploadData.url) {
-        throw new Error('Error al subir la imagen');
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'estadoMaquinas',
+        public_id: file.name.split('.')[0],
+      },
+      (error, result) => {
+        if (error) {
+          console.error('Error en Cloudinary:', error);
+          return response.reject(error);
+        } else {
+          response.resolve(result);
+        }
       }
+    );
 
-      const url = uploadData.url;
+    const response = await new Promise((resolve, reject) => {
+      bufferToStream(buffer).pipe(stream);
+      response = { resolve, reject };
+    });
 
-      const resMaquina = await fetch('/api/maquinas', {
-        method: 'POST',
-        body: JSON.stringify({
-          ...formData,
-          fecha: formData.fecha.toISOString(),
-          imagenUrl: url,
-        }),
-        headers: { 'Content-Type': 'application/json' },
-      });
-
-      const resData = await resMaquina.json();
-
-      if (resMaquina.ok) {
-        setMensaje('✅ Máquina creada correctamente');
-        setFormData({ nombre: '', ubicacion: '', estado: '', fecha: dayjs() });
-        eliminarImagen(); // limpia también el file
-      } else {
-        const errorMsg = resData?.error || '❌ Error al guardar la máquina';
-        setMensaje(errorMsg);
-      }
-    } catch (err) {
-      console.error(err);
-      setMensaje('❌ Error inesperado: ' + err.message);
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  return (
-    <Stack spacing={2} sx={{ maxWidth: 500, mx: 'auto', mt: 4 }}>
-      <Typography variant="h5">Crear Máquina</Typography>
-
-      <TextField
-        label="Nombre"
-        name="nombre"
-        value={formData.nombre}
-        onChange={handleChange}
-        required
-      />
-      <TextField
-        label="Ubicación"
-        name="ubicacion"
-        value={formData.ubicacion}
-        onChange={handleChange}
-        required
-      />
-      <TextField
-        select
-        label="Estado"
-        name="estado"
-        value={formData.estado}
-        onChange={handleChange}
-        required
-      >
-        {estados.map((estado) => (
-          <MenuItem key={estado} value={estado}>
-            {estado}
-          </MenuItem>
-        ))}
-      </TextField>
-
-      <DatePicker
-        label="Fecha"
-        value={formData.fecha}
-        onChange={handleFecha}
-      />
-
-      <input
-        type="file"
-        accept="image/*"
-        onChange={handleImagen}
-        ref={inputRef}
-        style={{ marginTop: '10px' }}
-      />
-
-      {previewUrl && (
-        <Box sx={{ mt: 1, textAlign: 'center', position: 'relative' }}>
-          <img
-            src={previewUrl}
-            alt="Preview"
-            style={{
-              maxWidth: '100%',
-              maxHeight: '200px',
-              borderRadius: '8px',
-              border: '1px solid #ccc',
-            }}
-          />
-          <IconButton
-            onClick={eliminarImagen}
-            size="small"
-            sx={{
-              position: 'absolute',
-              top: 8,
-              right: 8,
-              backgroundColor: '#fff',
-              boxShadow: 1,
-            }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Box>
-      )}
-
-      <Button
-        variant="contained"
-        color="primary"
-        onClick={handleSubmit}
-        disabled={cargando}
-      >
-        {cargando ? <CircularProgress size={24} /> : 'Guardar'}
-      </Button>
-
-      {mensaje && <Typography>{mensaje}</Typography>}
-    </Stack>
-  );
+    return NextResponse.json({ url: response.secure_url });
+  } catch (err) {
+    console.error('❌ Error al subir imagen:', err);
+    return NextResponse.json({ error: 'Error inesperado al subir imagen' }, { status: 500 });
+  }
 }
