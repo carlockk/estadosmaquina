@@ -25,9 +25,5 @@ pnpm-debug.log*
 .vscode/
 .idea/
 
-# Optional temp folders
-temp/
-uploads/
-
 # Static export cache (optional)
 .cache/
