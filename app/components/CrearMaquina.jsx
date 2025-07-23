@@ -1,3 +1,4 @@
+// app/api/upload/route.js ó route.ts
 import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
 import { NextResponse } from 'next/server';
@@ -8,6 +9,7 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// 🔄 Convierte buffer a stream legible
 function bufferToStream(buffer) {
   const readable = new Readable();
   readable.push(buffer);
@@ -27,27 +29,27 @@ export async function POST(req) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: 'estadoMaquinas',
-        public_id: file.name.split('.')[0],
-      },
-      (error, result) => {
-        if (error) {
-          console.error('Error en Cloudinary:', error);
-          return response.reject(error);
-        } else {
-          response.resolve(result);
+    // ✅ Envolver en Promise correctamente
+    const uploadResult = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'estadoMaquinas',
+          public_id: file.name.split('.')[0],
+        },
+        (error, result) => {
+          if (error) {
+            console.error('❌ Error en Cloudinary:', error);
+            reject(error);
+          } else {
+            resolve(result);
+          }
         }
-      }
-    );
+      );
 
-    const response = await new Promise((resolve, reject) => {
       bufferToStream(buffer).pipe(stream);
-      response = { resolve, reject };
     });
 
-    return NextResponse.json({ url: response.secure_url });
+    return NextResponse.json({ url: uploadResult.secure_url });
   } catch (err) {
     console.error('❌ Error al subir imagen:', err);
     return NextResponse.json({ error: 'Error inesperado al subir imagen' }, { status: 500 });
