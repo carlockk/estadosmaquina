@@ -1,6 +1,6 @@
-// app/api/upload/route.js
 import { v2 as cloudinary } from 'cloudinary';
-import { writeFile } from 'fs/promises';
+import { writeFile, mkdir, unlink } from 'fs/promises';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { NextResponse } from 'next/server';
 
@@ -22,14 +22,26 @@ export async function POST(req) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Guardar temporalmente el archivo (necesario para Cloudinary)
-    const tempPath = join(process.cwd(), 'temp', file.name);
+    // ✅ Ruta completa al archivo temporal
+    const tempDir = join(process.cwd(), 'temp');
+    const tempPath = join(tempDir, file.name);
+
+    // ✅ Crea la carpeta temp si no existe
+    if (!existsSync(tempDir)) {
+      await mkdir(tempDir);
+    }
+
+    // ✅ Guarda el archivo temporal
     await writeFile(tempPath, buffer);
 
+    // ✅ Sube a Cloudinary
     const result = await cloudinary.uploader.upload(tempPath, {
       folder: 'estadoMaquinas',
       public_id: file.name.split('.')[0],
     });
+
+    // ✅ Elimina archivo temporal
+    await unlink(tempPath);
 
     return NextResponse.json({ url: result.secure_url });
   } catch (error) {
