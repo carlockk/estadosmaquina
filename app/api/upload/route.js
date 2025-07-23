@@ -11,41 +11,43 @@ cloudinary.config({
 });
 
 export async function POST(req) {
-  const formData = await req.formData();
-  const file = formData.get('file');
-
-  if (!file) {
-    return NextResponse.json({ error: 'Archivo no recibido' }, { status: 400 });
-  }
-
   try {
+    const formData = await req.formData();
+    const file = formData.get('file');
+
+    if (!file) {
+      return NextResponse.json({ error: 'Archivo no recibido' }, { status: 400 });
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // ✅ Ruta completa al archivo temporal
     const tempDir = join(process.cwd(), 'temp');
-    const tempPath = join(tempDir, file.name);
+    const tempPath = join(tempDir, `${Date.now()}-${file.name}`);
 
-    // ✅ Crea la carpeta temp si no existe
     if (!existsSync(tempDir)) {
       await mkdir(tempDir);
     }
 
-    // ✅ Guarda el archivo temporal
     await writeFile(tempPath, buffer);
 
-    // ✅ Sube a Cloudinary
     const result = await cloudinary.uploader.upload(tempPath, {
       folder: 'estadoMaquinas',
       public_id: file.name.split('.')[0],
     });
 
-    // ✅ Elimina archivo temporal
     await unlink(tempPath);
+
+    if (!result || !result.secure_url) {
+      return NextResponse.json({ error: 'No se obtuvo URL de Cloudinary' }, { status: 500 });
+    }
 
     return NextResponse.json({ url: result.secure_url });
   } catch (error) {
-    console.error('❌ Error al subir imagen:', error);
-    return NextResponse.json({ error: 'Fallo al subir imagen' }, { status: 500 });
+    console.error('❌ Error al subir imagen:', error.message || error);
+    return NextResponse.json({
+      error: 'Error al subir imagen',
+      detalle: error.message || 'Desconocido',
+    }, { status: 500 });
   }
 }
