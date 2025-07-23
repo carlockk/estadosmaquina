@@ -24,36 +24,26 @@ export async function POST(req) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    const stream = cloudinary.uploader.upload_stream(
-      { folder: 'estado_maquinas' },
-      (error, result) => {
-        if (error) {
-          console.error('❌ Cloudinary upload error:', error);
-          throw error;
-        }
-        return result;
-      }
-    );
-
-    const readable = Readable.from(buffer);
-    readable.pipe(stream);
-
-    // Esperamos a que Cloudinary termine:
-    const result = await new Promise((resolve, reject) => {
-      const upload = cloudinary.uploader.upload_stream(
-        { folder: 'estado_maquinas' },
-        (err, result) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve(result);
+    // Promesa para subir a Cloudinary desde stream (1 sola vez)
+    const subirACloudinary = () =>
+      new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'estado_maquinas' },
+          (error, result) => {
+            if (error) {
+              console.error('❌ Cloudinary upload error:', error);
+              reject(error);
+            } else {
+              resolve(result);
+            }
           }
-        }
-      );
-      Readable.from(buffer).pipe(upload);
-    });
+        );
+        Readable.from(buffer).pipe(stream);
+      });
 
-    return NextResponse.json({ url: result.secure_url });
+    const resultado = await subirACloudinary();
+
+    return NextResponse.json({ url: resultado.secure_url });
   } catch (error) {
     console.error('❌ ERROR EN /api/upload:', error);
     return NextResponse.json(
