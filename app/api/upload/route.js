@@ -62,7 +62,8 @@ export async function POST(req) {
 
     return NextResponse.json({ url: result.secure_url });
   } catch (error) {
-    console.error('❌ Error inesperado al subir imagen:', error);
-    return NextResponse.json({ error: 'Fallo inesperado al subir imagen' }, { status: 500 });
-  }
+  console.error('❌ Error al subir imagen:', error.message, error);
+  return NextResponse.json({ error: error.message || 'Fallo inesperado al subir imagen' }, { status: 500 });
+}
+
 }
