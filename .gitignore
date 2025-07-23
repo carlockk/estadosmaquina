@@ -1,0 +1,33 @@
+# Node modules
+node_modules/
+
+# Build output
+.next/
+out/
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local environment
+.env
+.env.local
+.env.*.local
+
+# OS / Editor
+.DS_Store
+*.swp
+*.swo
+*.log
+.vscode/
+.idea/
+
+# Optional temp folders
+temp/
+uploads/
+
+# Static export cache (optional)
+.cache/
