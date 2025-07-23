@@ -1,4 +1,7 @@
 import { v2 as cloudinary } from 'cloudinary';
+import { writeFile, mkdir, unlink } from 'fs/promises';
+import { existsSync } from 'fs';
+import { join } from 'path';
 import { NextResponse } from 'next/server';
 
 cloudinary.config({
@@ -19,27 +22,32 @@ export async function POST(req) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'estadoMaquinas',
-          public_id: file.name.split('.')[0],
-        },
-        (error, result) => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve(result);
-          }
-        }
-      );
+    const tempDir = join(process.cwd(), 'temp');
+    const tempPath = join(tempDir, `${Date.now()}-${file.name}`);
 
-      uploadStream.end(buffer);
+    if (!existsSync(tempDir)) {
+      await mkdir(tempDir);
+    }
+
+    await writeFile(tempPath, buffer);
+
+    const result = await cloudinary.uploader.upload(tempPath, {
+      folder: 'estadoMaquinas',
+      public_id: file.name.split('.')[0],
     });
+
+    await unlink(tempPath);
+
+    if (!result || !result.secure_url) {
+      return NextResponse.json({ error: 'No se obtuvo URL de Cloudinary' }, { status: 500 });
+    }
 
     return NextResponse.json({ url: result.secure_url });
   } catch (error) {
-    console.error('❌ Error al subir imagen:', error);
-    return NextResponse.json({ error: 'Fallo al subir imagen' }, { status: 500 });
+    console.error('❌ Error al subir imagen:', error.message || error);
+    return NextResponse.json({
+      error: 'Error al subir imagen',
+      detalle: error.message || 'Desconocido',
+    }, { status: 500 });
   }
 }
