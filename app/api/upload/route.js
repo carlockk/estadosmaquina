@@ -1,5 +1,6 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { NextResponse } from 'next/server';
+import { Readable } from 'stream';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -9,53 +10,55 @@ cloudinary.config({
 
 export async function POST(req) {
   try {
+    const contentType = req.headers.get('content-type');
+    if (!contentType?.includes('multipart/form-data')) {
+      return NextResponse.json({ error: 'Tipo de contenido no válido' }, { status: 400 });
+    }
+
     const formData = await req.formData();
     const file = formData.get('file');
 
-    // 🔍 DEBUG: Verifica que Cloudinary esté bien configurado
-    console.log('🧪 ENV:', {
-      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-      api_key: process.env.CLOUDINARY_API_KEY,
-      hasSecret: !!process.env.CLOUDINARY_API_SECRET,
-    });
-
-    if (!file || typeof file.arrayBuffer !== 'function') {
-      console.log('❌ Archivo inválido:', file);
-      return NextResponse.json({ error: 'Archivo no válido' }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: 'No se recibió ningún archivo' }, { status: 400 });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const buffer = Buffer.from(await file.arrayBuffer());
 
+    const stream = cloudinary.uploader.upload_stream(
+      { folder: 'estado_maquinas' },
+      (error, result) => {
+        if (error) {
+          console.error('❌ Cloudinary upload error:', error);
+          throw error;
+        }
+        return result;
+      }
+    );
+
+    const readable = Readable.from(buffer);
+    readable.pipe(stream);
+
+    // Esperamos a que Cloudinary termine:
     const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'estadoMaquinas',
-          public_id: `img_${Date.now()}`, // ✅ Public ID seguro
-          resource_type: 'image',
-        },
-        (error, result) => {
-          if (error) {
-            console.error('❌ Cloudinary error:', error);
-            reject(error);
+      const upload = cloudinary.uploader.upload_stream(
+        { folder: 'estado_maquinas' },
+        (err, result) => {
+          if (err) {
+            reject(err);
           } else {
-            console.log('✅ Imagen subida:', result.secure_url);
             resolve(result);
           }
         }
       );
-
-      uploadStream.end(buffer);
+      Readable.from(buffer).pipe(upload);
     });
 
     return NextResponse.json({ url: result.secure_url });
-
   } catch (error) {
-    console.error('❌ ERROR EN /api/upload:', error.message);
-    console.error(error.stack || error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Error inesperado' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    console.error('❌ ERROR EN /api/upload:', error);
+    return NextResponse.json(
+      { error: 'Error inesperado', detalles: error.message },
+      { status: 500 }
     );
   }
 }
