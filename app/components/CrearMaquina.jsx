@@ -24,6 +24,7 @@ export default function CrearMaquina() {
     estado: '',
     fecha: dayjs(),
   });
+
   const [imagen, setImagen] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [cargando, setCargando] = useState(false);
@@ -41,6 +42,10 @@ export default function CrearMaquina() {
   const handleImagen = (e) => {
     const archivo = e.target.files[0];
     if (archivo) {
+      if (!archivo.type.startsWith('image/')) {
+        setMensaje('❌ Solo se permiten imágenes');
+        return;
+      }
       setImagen(archivo);
       setPreviewUrl(URL.createObjectURL(archivo));
     }
@@ -49,7 +54,7 @@ export default function CrearMaquina() {
   const eliminarImagen = () => {
     setImagen(null);
     setPreviewUrl(null);
-    inputRef.current.value = null; // Limpia el input file
+    inputRef.current.value = null;
   };
 
   const handleSubmit = async () => {
@@ -58,6 +63,7 @@ export default function CrearMaquina() {
     setCargando(true);
 
     try {
+      // Subida a Cloudinary
       const imgData = new FormData();
       imgData.append('file', imagen);
 
@@ -69,19 +75,21 @@ export default function CrearMaquina() {
       const uploadData = await resUpload.json();
 
       if (!resUpload.ok || !uploadData.url) {
-        throw new Error('Error al subir la imagen');
+        console.error('❌ Error al subir imagen:', uploadData);
+        throw new Error(uploadData?.error || 'Error al subir la imagen');
       }
 
       const url = uploadData.url;
 
+      // Registro en base de datos
       const resMaquina = await fetch('/api/maquinas', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
           fecha: formData.fecha.toISOString(),
           imagenUrl: url,
         }),
-        headers: { 'Content-Type': 'application/json' },
       });
 
       const resData = await resMaquina.json();
@@ -89,7 +97,7 @@ export default function CrearMaquina() {
       if (resMaquina.ok) {
         setMensaje('✅ Máquina creada correctamente');
         setFormData({ nombre: '', ubicacion: '', estado: '', fecha: dayjs() });
-        eliminarImagen(); // limpia también el file
+        eliminarImagen();
       } else {
         const errorMsg = resData?.error || '❌ Error al guardar la máquina';
         setMensaje(errorMsg);
