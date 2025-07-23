@@ -1,57 +1,58 @@
-// app/api/upload/route.js ó route.ts
-import { v2 as cloudinary } from 'cloudinary';
-import { Readable } from 'stream';
-import { NextResponse } from 'next/server';
+"use client";
+import { useState } from "react";
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+export default function CrearMaquina({ onUploadSuccess }) {
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [url, setUrl] = useState("");
 
-// 🔄 Convierte buffer a stream legible
-function bufferToStream(buffer) {
-  const readable = new Readable();
-  readable.push(buffer);
-  readable.push(null);
-  return readable;
-}
-
-export async function POST(req) {
-  try {
-    const formData = await req.formData();
-    const file = formData.get('file');
-
-    if (!file) {
-      return NextResponse.json({ error: 'Archivo no recibido' }, { status: 400 });
+  const handleChange = (e) => {
+    const f = e.target.files[0];
+    if (f) {
+      setFile(f);
+      setPreview(URL.createObjectURL(f));
     }
+  };
 
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+  const handleUpload = async () => {
+    if (!file) return alert("Selecciona una imagen");
 
-    // ✅ Envolver en Promise correctamente
-    const uploadResult = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'estadoMaquinas',
-          public_id: file.name.split('.')[0],
-        },
-        (error, result) => {
-          if (error) {
-            console.error('❌ Error en Cloudinary:', error);
-            reject(error);
-          } else {
-            resolve(result);
-          }
-        }
-      );
+    const formData = new FormData();
+    formData.append("file", file);
 
-      bufferToStream(buffer).pipe(stream);
-    });
+    setLoading(true);
+    try {
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
 
-    return NextResponse.json({ url: uploadResult.secure_url });
-  } catch (err) {
-    console.error('❌ Error al subir imagen:', err);
-    return NextResponse.json({ error: 'Error inesperado al subir imagen' }, { status: 500 });
-  }
+      const data = await res.json();
+      if (data.url) {
+        setUrl(data.url);
+        onUploadSuccess && onUploadSuccess(data.url);
+      } else {
+        alert("❌ Error al subir imagen");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("❌ Error en la petición");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2>📸 Subir Imagen</h2>
+      <input type="file" accept="image/*" onChange={handleChange} />
+      {preview && <img src={preview} alt="preview" width="200" />}
+      <br />
+      <button onClick={handleUpload} disabled={loading}>
+        {loading ? "Subiendo..." : "Subir"}
+      </button>
+      {url && <p>✅ Imagen subida: <a href={url} target="_blank">{url}</a></p>}
+    </div>
+  );
 }
