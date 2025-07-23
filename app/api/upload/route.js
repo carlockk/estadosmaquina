@@ -1,4 +1,5 @@
 import { v2 as cloudinary } from 'cloudinary';
+import { Readable } from 'stream';
 import { NextResponse } from 'next/server';
 
 cloudinary.config({
@@ -6,6 +7,13 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
+
+function bufferToStream(buffer) {
+  const readable = new Readable();
+  readable.push(buffer);
+  readable.push(null);
+  return readable;
+}
 
 export async function POST(req) {
   try {
@@ -20,26 +28,27 @@ export async function POST(req) {
     const buffer = Buffer.from(arrayBuffer);
 
     const result = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'estadoMaquinas',
-          public_id: file.name.split('.')[0],
-        },
-        (error, result) => {
-          if (error) {
-            reject(error);
-          } else {
-            resolve(result);
+      bufferToStream(buffer).pipe(
+        cloudinary.uploader.upload_stream(
+          {
+            folder: 'estadoMaquinas',
+            public_id: file.name.split('.')[0],
+          },
+          (error, result) => {
+            if (error) {
+              console.error('Error en Cloudinary:', error);
+              reject(error);
+            } else {
+              resolve(result);
+            }
           }
-        }
+        )
       );
-
-      uploadStream.end(buffer);
     });
 
     return NextResponse.json({ url: result.secure_url });
-  } catch (error) {
-    console.error('❌ Error al subir imagen:', error);
-    return NextResponse.json({ error: 'Fallo al subir imagen' }, { status: 500 });
+  } catch (err) {
+    console.error('❌ Error al subir imagen:', err);
+    return NextResponse.json({ error: 'Error inesperado al subir imagen' }, { status: 500 });
   }
 }
