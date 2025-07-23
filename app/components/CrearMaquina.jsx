@@ -1,58 +1,65 @@
-"use client";
-import { useState } from "react";
+'use client';
+import { useState } from 'react';
 
-export default function CrearMaquina({ onUploadSuccess }) {
+export default function CrearMaquina() {
   const [file, setFile] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [url, setUrl] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [url, setUrl] = useState('');
+  const [error, setError] = useState('');
 
-  const handleChange = (e) => {
-    const f = e.target.files[0];
-    if (f) {
-      setFile(f);
-      setPreview(URL.createObjectURL(f));
-    }
+  const handleFileChange = (e) => {
+    setFile(e.target.files[0]);
+    setUrl('');
+    setError('');
   };
 
   const handleUpload = async () => {
-    if (!file) return alert("Selecciona una imagen");
+    if (!file) {
+      setError('⚠️ Debes seleccionar una imagen.');
+      return;
+    }
 
-    const formData = new FormData();
-    formData.append("file", file);
-
-    setLoading(true);
     try {
-      const res = await fetch("/api/upload", {
-        method: "POST",
+      setUploading(true);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
         body: formData,
       });
 
       const data = await res.json();
-      if (data.url) {
-        setUrl(data.url);
-        onUploadSuccess && onUploadSuccess(data.url);
-      } else {
-        alert("❌ Error al subir imagen");
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Error desconocido');
       }
+
+      setUrl(data.url);
     } catch (err) {
-      console.error(err);
-      alert("❌ Error en la petición");
+      console.error('❌ Error al subir:', err);
+      setError(err.message || 'Fallo inesperado');
     } finally {
-      setLoading(false);
+      setUploading(false);
     }
   };
 
   return (
-    <div>
-      <h2>📸 Subir Imagen</h2>
-      <input type="file" accept="image/*" onChange={handleChange} />
-      {preview && <img src={preview} alt="preview" width="200" />}
-      <br />
-      <button onClick={handleUpload} disabled={loading}>
-        {loading ? "Subiendo..." : "Subir"}
+    <div style={{ padding: '2rem' }}>
+      <h2>📸 Subir Imagen de Máquina</h2>
+
+      <input type="file" accept="image/*" onChange={handleFileChange} />
+      <button onClick={handleUpload} disabled={uploading} style={{ marginTop: '1rem' }}>
+        {uploading ? 'Subiendo...' : 'Subir'}
       </button>
-      {url && <p>✅ Imagen subida: <a href={url} target="_blank">{url}</a></p>}
+
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {url && (
+        <div style={{ marginTop: '1rem' }}>
+          <p>✅ Imagen subida con éxito:</p>
+          <img src={url} alt="Preview" style={{ maxWidth: '300px', borderRadius: '8px' }} />
+        </div>
+      )}
     </div>
   );
 }
