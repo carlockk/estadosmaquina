@@ -1,7 +1,7 @@
+// app/api/upload/route.js
 import { v2 as cloudinary } from 'cloudinary';
 import { NextResponse } from 'next/server';
-
-export const runtime = 'nodejs';
+import { Readable } from 'stream';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -12,52 +12,43 @@ cloudinary.config({
 export async function POST(req) {
   try {
     const contentType = req.headers.get('content-type');
-
-    // ✅ Modo JSON (desde edición)
-    if (contentType.includes('application/json')) {
-      const body = await req.json();
-      const { dataUri, publicId } = body;
-
-      if (!dataUri || !publicId) {
-        return NextResponse.json(
-          { error: 'Faltan parámetros: dataUri o publicId' },
-          { status: 400 }
-        );
-      }
-
-      const result = await cloudinary.uploader.upload(dataUri, {
-        public_id: publicId,
-        overwrite: true,
-        folder: 'estado_maquinas',
-      });
-
-      return NextResponse.json({ url: result.secure_url });
+    if (!contentType?.includes('multipart/form-data')) {
+      return NextResponse.json({ error: 'Tipo de contenido no válido' }, { status: 400 });
     }
 
-    // ✅ Modo FormData (desde creación)
-    if (contentType.includes('multipart/form-data')) {
-      const formData = await req.formData();
-      const file = formData.get('file');
+    const formData = await req.formData();
+    const file = formData.get('file');
+    const publicId = formData.get('public_id'); // viene desde edición si aplica
 
-      if (!file) {
-        return NextResponse.json({ error: 'No se recibió ningún archivo' }, { status: 400 });
-      }
-
-      const arrayBuffer = await file.arrayBuffer();
-      const base64 = Buffer.from(arrayBuffer).toString('base64');
-      const dataUri = `data:${file.type};base64,${base64}`;
-
-      const result = await cloudinary.uploader.upload(dataUri, {
-        folder: 'estado_maquinas',
-      });
-
-      return NextResponse.json({ url: result.secure_url });
+    if (!file) {
+      return NextResponse.json({ error: 'No se recibió ningún archivo' }, { status: 400 });
     }
 
-    return NextResponse.json(
-      { error: 'Tipo de contenido no soportado' },
-      { status: 400 }
-    );
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    const dataUri = `data:${file.type};base64,${buffer.toString('base64')}`;
+
+    // Configuración para subida
+    const uploadOptions = publicId
+      ? {
+          public_id: publicId.startsWith('estado_maquinas/')
+            ? publicId
+            : `estado_maquinas/${publicId}`,
+          overwrite: true,
+        }
+      : {
+          folder: 'estado_maquinas',
+        };
+
+    const result = await new Promise((resolve, reject) => {
+      cloudinary.uploader.upload(dataUri, uploadOptions, (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      });
+    });
+
+    return NextResponse.json({ url: result.secure_url });
   } catch (error) {
     console.error('❌ ERROR EN /api/upload:', {
       mensaje: error.message,
@@ -66,7 +57,7 @@ export async function POST(req) {
     });
 
     return NextResponse.json(
-      { error: 'Error inesperado al subir la imagen', detalles: error.message },
+      { error: 'Error al subir la imagen' },
       { status: 500 }
     );
   }
