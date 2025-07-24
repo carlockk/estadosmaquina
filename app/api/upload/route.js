@@ -1,5 +1,3 @@
-// app/api/upload/route.js
-
 import { v2 as cloudinary } from 'cloudinary';
 import { NextResponse } from 'next/server';
 
@@ -14,26 +12,52 @@ cloudinary.config({
 export async function POST(req) {
   try {
     const contentType = req.headers.get('content-type');
-    if (!contentType?.includes('multipart/form-data')) {
-      return NextResponse.json({ error: 'Tipo de contenido no válido' }, { status: 400 });
+
+    // ✅ Modo JSON (desde edición)
+    if (contentType.includes('application/json')) {
+      const body = await req.json();
+      const { dataUri, publicId } = body;
+
+      if (!dataUri || !publicId) {
+        return NextResponse.json(
+          { error: 'Faltan parámetros: dataUri o publicId' },
+          { status: 400 }
+        );
+      }
+
+      const result = await cloudinary.uploader.upload(dataUri, {
+        public_id: publicId,
+        overwrite: true,
+        folder: 'estado_maquinas',
+      });
+
+      return NextResponse.json({ url: result.secure_url });
     }
 
-    const formData = await req.formData();
-    const file = formData.get('file');
+    // ✅ Modo FormData (desde creación)
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await req.formData();
+      const file = formData.get('file');
 
-    if (!file) {
-      return NextResponse.json({ error: 'No se recibió ningún archivo' }, { status: 400 });
+      if (!file) {
+        return NextResponse.json({ error: 'No se recibió ningún archivo' }, { status: 400 });
+      }
+
+      const arrayBuffer = await file.arrayBuffer();
+      const base64 = Buffer.from(arrayBuffer).toString('base64');
+      const dataUri = `data:${file.type};base64,${base64}`;
+
+      const result = await cloudinary.uploader.upload(dataUri, {
+        folder: 'estado_maquinas',
+      });
+
+      return NextResponse.json({ url: result.secure_url });
     }
 
-    const arrayBuffer = await file.arrayBuffer();
-    const base64 = Buffer.from(arrayBuffer).toString('base64');
-    const dataUri = `data:${file.type};base64,${base64}`;
-
-    const result = await cloudinary.uploader.upload(dataUri, {
-      folder: 'estado_maquinas',
-    });
-
-    return NextResponse.json({ url: result.secure_url });
+    return NextResponse.json(
+      { error: 'Tipo de contenido no soportado' },
+      { status: 400 }
+    );
   } catch (error) {
     console.error('❌ ERROR EN /api/upload:', {
       mensaje: error.message,
