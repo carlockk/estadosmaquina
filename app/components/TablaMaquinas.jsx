@@ -32,6 +32,7 @@ export default function TablaMaquinas({ refrescar }) {
   const [modalImagen, setModalImagen] = useState('');
   const [modalEditar, setModalEditar] = useState(false);
   const [maquinaEditando, setMaquinaEditando] = useState(null);
+  const [nuevaImagen, setNuevaImagen] = useState(null);
   const [mensaje, setMensaje] = useState('');
   const [mostrarMensaje, setMostrarMensaje] = useState(false);
   const notificadas = useRef(new Set());
@@ -71,11 +72,47 @@ export default function TablaMaquinas({ refrescar }) {
 
   const handleEditar = (maquina) => {
     setMaquinaEditando({ ...maquina, fecha: dayjs(maquina.fecha) });
+    setNuevaImagen(null);
     setModalEditar(true);
   };
 
+  const extraerPublicId = (url) => {
+    try {
+      const partes = url.split('/upload/');
+      if (partes.length < 2) return null;
+      return partes[1].split('.')[0]; // sin extensión
+    } catch {
+      return null;
+    }
+  };
+
   const handleGuardarEdicion = async () => {
-    const { _id, nombre, ubicacion, estado, fecha } = maquinaEditando;
+    const { _id, nombre, ubicacion, estado, fecha, imagenUrl } = maquinaEditando;
+
+    let urlFinal = imagenUrl;
+
+    if (nuevaImagen) {
+      const buffer = await nuevaImagen.arrayBuffer();
+      const base64 = Buffer.from(buffer).toString('base64');
+      const dataUri = `data:${nuevaImagen.type};base64,${base64}`;
+
+      const publicId = extraerPublicId(imagenUrl);
+
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dataUri, publicId }),
+      });
+
+      const uploadData = await uploadRes.json();
+
+      if (uploadRes.ok && uploadData?.url) {
+        urlFinal = uploadData.url;
+      } else {
+        alert('❌ Error al reemplazar la imagen');
+        return;
+      }
+    }
 
     const res = await fetch(`/api/maquinas/${_id}`, {
       method: 'PUT',
@@ -84,6 +121,7 @@ export default function TablaMaquinas({ refrescar }) {
         ubicacion,
         estado,
         fecha: fecha.toISOString(),
+        imagenUrl: urlFinal,
       }),
       headers: { 'Content-Type': 'application/json' },
     });
@@ -261,6 +299,26 @@ export default function TablaMaquinas({ refrescar }) {
                 }))
               }
             />
+
+            {maquinaEditando?.imagenUrl && (
+              <img
+                src={maquinaEditando.imagenUrl}
+                alt="actual"
+                style={{
+                  maxHeight: 120,
+                  objectFit: 'contain',
+                  border: '1px solid #ccc',
+                  borderRadius: 6,
+                }}
+              />
+            )}
+
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setNuevaImagen(e.target.files[0])}
+            />
+
             <Button variant="contained" onClick={handleGuardarEdicion}>
               Guardar Cambios
             </Button>
