@@ -1,229 +1,267 @@
 'use client';
 
-import { useState, useRef } from 'react';
 import {
-  TextField, Button, MenuItem, Stack, Typography,
-  CircularProgress, Box, IconButton, Snackbar, Alert, Paper
+  Table, TableBody, TableCell, TableContainer, TableHead,
+  TableRow, Paper, TextField, Pagination, Modal, Box,
+  IconButton, Button, MenuItem, Stack, Snackbar, Alert, useMediaQuery
 } from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
+import { useEffect, useRef, useState } from 'react';
 import dayjs from 'dayjs';
-import DeleteIcon from '@mui/icons-material/Close';
+
+const styleModal = {
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: '90%',
+  maxWidth: 500,
+  bgcolor: 'background.paper',
+  boxShadow: 24,
+  p: 4,
+  borderRadius: 3,
+};
 
 const estados = ['Activa', 'En Mantenimiento', 'Fuera de Servicio'];
 
-export default function CrearMaquina() {
-  const [formData, setFormData] = useState({
-    nombre: '',
-    ubicacion: '',
-    estado: '',
-    fecha: dayjs(),
-  });
+export default function TablaMaquinas({ refrescar }) {
+  const isMobile = useMediaQuery('(max-width:600px)');
+  const [maquinas, setMaquinas] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [pagina, setPagina] = useState(1);
+  const [modalImagen, setModalImagen] = useState('');
+  const [modalEditar, setModalEditar] = useState(false);
+  const [maquinaEditando, setMaquinaEditando] = useState(null);
+  const [nuevaImagen, setNuevaImagen] = useState(null);
+  const [mensaje, setMensaje] = useState('');
+  const [mostrarMensaje, setMostrarMensaje] = useState(false);
+  const notificadas = useRef(new Set());
+  const porPagina = 10;
 
-  const [imagen, setImagen] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState(null);
-  const [cargando, setCargando] = useState(false);
-  const [notificacion, setNotificacion] = useState({
-    open: false,
-    mensaje: '',
-    tipo: 'success',
-  });
-
-  const inputRef = useRef();
-
-  const handleChange = (e) => {
-    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+  const cargarMaquinas = async () => {
+    const res = await fetch('/api/maquinas');
+    const data = await res.json();
+    setMaquinas(data);
   };
 
-  const handleFecha = (nuevaFecha) => {
-    setFormData((prev) => ({ ...prev, fecha: nuevaFecha }));
-  };
+  useEffect(() => {
+    cargarMaquinas();
+    if (Notification.permission !== 'granted') {
+      Notification.requestPermission();
+    }
+  }, [refrescar]);
 
-  const handleImagen = (e) => {
-    const archivo = e.target.files[0];
-    if (archivo) {
-      if (!archivo.type.startsWith('image/')) {
-        mostrarNotificacion('❌ Solo se permiten imágenes', 'error');
-        return;
-      }
-      setImagen(archivo);
-      setPreviewUrl(URL.createObjectURL(archivo));
+  const handleEliminar = async (id) => {
+    const clave = prompt('🔒 Ingresa la clave para eliminar:');
+    if (clave !== '7926') return alert('❌ Clave incorrecta');
+
+    if (!confirm('¿Seguro que deseas eliminar esta máquina?')) return;
+
+    const res = await fetch(`/api/maquinas/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      alert('✅ Eliminado correctamente');
+      cargarMaquinas();
+    } else {
+      alert('❌ Error al eliminar');
     }
   };
 
-  const eliminarImagen = () => {
-    setImagen(null);
-    setPreviewUrl(null);
-    inputRef.current.value = null;
+  const handleEditar = (maquina) => {
+    setMaquinaEditando({ ...maquina, fecha: dayjs(maquina.fecha) });
+    setNuevaImagen(null);
+    setModalEditar(true);
   };
 
-  const mostrarNotificacion = (mensaje, tipo = 'info') => {
-    setNotificacion({ open: true, mensaje, tipo });
-  };
-
-  const handleSubmit = async () => {
-    if (!imagen) return mostrarNotificacion('⚠️ Debes subir una imagen', 'warning');
-    if (!formData.nombre || !formData.ubicacion || !formData.estado) {
-      return mostrarNotificacion('⚠️ Todos los campos son obligatorios', 'warning');
-    }
-
-    setCargando(true);
-
+  const extraerPublicId = (url) => {
     try {
-      const imgData = new FormData();
-      imgData.append('file', imagen);
-
-      const resUpload = await fetch('/api/upload', {
-        method: 'POST',
-        body: imgData,
-      });
-
-      if (!resUpload.ok) {
-        const errorText = await resUpload.text();
-        console.error('❌ Error al subir imagen:', errorText);
-        throw new Error('Error al subir la imagen. Revisa Cloudinary o el servidor.');
-      }
-
-      const uploadData = await resUpload.json();
-      if (!uploadData?.url) {
-        throw new Error('No se recibió la URL de la imagen');
-      }
-
-      const resMaquina = await fetch('/api/maquinas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          fecha: formData.fecha.toISOString(),
-          imagenUrl: uploadData.url,
-        }),
-      });
-
-      const resData = await resMaquina.json();
-
-      if (resMaquina.ok) {
-        mostrarNotificacion('✅ Máquina creada correctamente', 'success');
-        setFormData({ nombre: '', ubicacion: '', estado: '', fecha: dayjs() });
-        eliminarImagen();
-      } else {
-        throw new Error(resData?.error || '❌ Error al guardar la máquina');
-      }
-    } catch (err) {
-      console.error(err);
-      mostrarNotificacion(`❌ Error: ${err.message}`, 'error');
-    } finally {
-      setCargando(false);
+      const partes = url.split('/upload/');
+      return partes[1]?.split('.')[0];
+    } catch {
+      return null;
     }
   };
+
+  const handleGuardarEdicion = async () => {
+    const { _id, nombre, ubicacion, estado, fecha, imagenUrl } = maquinaEditando;
+    let urlFinal = imagenUrl;
+
+    if (nuevaImagen) {
+      const formData = new FormData();
+      formData.append('file', nuevaImagen);
+      const publicId = extraerPublicId(imagenUrl);
+      if (publicId) formData.append('public_id', publicId);
+
+      const uploadRes = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const uploadData = await uploadRes.json();
+      if (uploadRes.ok && uploadData?.url) {
+        urlFinal = uploadData.url;
+      } else {
+        return alert('❌ Error al subir imagen');
+      }
+    }
+
+    const res = await fetch(`/api/maquinas/${_id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nombre, ubicacion, estado,
+        fecha: fecha.toISOString(),
+        imagenUrl: urlFinal,
+      }),
+    });
+
+    if (res.ok) {
+      setMensaje('✅ Máquina actualizada');
+      setMostrarMensaje(true);
+      setModalEditar(false);
+      cargarMaquinas();
+    } else {
+      alert('❌ Error al actualizar');
+    }
+  };
+
+  const filtradas = maquinas.filter((m) =>
+    m.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+    m.ubicacion.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  const totalPaginas = Math.ceil(filtradas.length / porPagina);
+  const paginadas = filtradas.slice((pagina - 1) * porPagina, pagina * porPagina);
 
   return (
-    <Paper elevation={2} sx={{ p: 3, mt: 4, maxWidth: 500, mx: 'auto', borderRadius: 3 }}>
-      <Stack spacing={2}>
-        <Typography variant="h5" sx={{ textAlign: 'center' }}>
-          Crear Máquina
-        </Typography>
+    <>
+      <TextField
+        fullWidth
+        label="Buscar máquina o ubicación"
+        value={busqueda}
+        onChange={(e) => setBusqueda(e.target.value)}
+        sx={{ my: 3 }}
+      />
 
-        <TextField
-          label="Nombre"
-          name="nombre"
-          value={formData.nombre}
-          onChange={handleChange}
-          required
-          fullWidth
-        />
-
-        <TextField
-          label="Ubicación"
-          name="ubicacion"
-          value={formData.ubicacion}
-          onChange={handleChange}
-          required
-          fullWidth
-        />
-
-        <TextField
-          select
-          label="Estado"
-          name="estado"
-          value={formData.estado}
-          onChange={handleChange}
-          required
-          fullWidth
-        >
-          {estados.map((estado) => (
-            <MenuItem key={estado} value={estado}>
-              {estado}
-            </MenuItem>
+      {isMobile ? (
+        <Stack spacing={2}>
+          {paginadas.map((fila) => (
+            <Box key={fila._id} sx={{
+              p: 2, border: '1px solid #ddd', borderRadius: 3, boxShadow: 1, bgcolor: '#fff'
+            }}>
+              <Typography><strong>Máquina:</strong> {fila.nombre}</Typography>
+              <Typography><strong>Ubicación:</strong> {fila.ubicacion}</Typography>
+              <Typography><strong>Estado:</strong> {fila.estado}</Typography>
+              <Typography><strong>Fecha:</strong> {new Date(fila.fecha).toLocaleDateString()}</Typography>
+              {fila.imagenUrl && (
+                <img
+                  src={fila.imagenUrl}
+                  alt="mini"
+                  style={{ width: '100%', marginTop: 10, borderRadius: 6 }}
+                  onClick={() => setModalImagen(fila.imagenUrl)}
+                />
+              )}
+              <Stack direction="row" spacing={1} mt={2}>
+                <Button variant="outlined" size="small" onClick={() => handleEditar(fila)}>Editar</Button>
+                <Button variant="outlined" size="small" color="error" onClick={() => handleEliminar(fila._id)}>Eliminar</Button>
+              </Stack>
+            </Box>
           ))}
-        </TextField>
+        </Stack>
+      ) : (
+        <TableContainer component={Paper}>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Máquina</TableCell>
+                <TableCell>Ubicación</TableCell>
+                <TableCell>Estado</TableCell>
+                <TableCell>Fecha</TableCell>
+                <TableCell>Imagen</TableCell>
+                <TableCell>Acciones</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {paginadas.map((fila) => (
+                <TableRow key={fila._id}>
+                  <TableCell>{fila.nombre}</TableCell>
+                  <TableCell>{fila.ubicacion}</TableCell>
+                  <TableCell>{fila.estado}</TableCell>
+                  <TableCell>{new Date(fila.fecha).toLocaleDateString()}</TableCell>
+                  <TableCell>
+                    <img
+                      src={fila.imagenUrl}
+                      alt="mini"
+                      style={{ width: 60, height: 60, cursor: 'pointer', borderRadius: 6 }}
+                      onClick={() => setModalImagen(fila.imagenUrl)}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <IconButton color="primary" onClick={() => handleEditar(fila)}>
+                      <EditIcon />
+                    </IconButton>
+                    <IconButton color="error" onClick={() => handleEliminar(fila._id)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
 
-        <DatePicker
-          label="Fecha"
-          value={formData.fecha}
-          onChange={handleFecha}
-          sx={{ width: '100%' }}
-        />
+      <Pagination
+        count={totalPaginas}
+        page={pagina}
+        onChange={(_, value) => setPagina(value)}
+        sx={{ mt: 3, justifyContent: 'center', display: 'flex' }}
+      />
 
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleImagen}
-          ref={inputRef}
-          style={{ marginTop: '10px' }}
-        />
+      <Modal open={!!modalImagen} onClose={() => setModalImagen('')}>
+        <Box sx={styleModal}>
+          <img src={modalImagen} alt="ampliada" style={{ width: '100%', borderRadius: 6 }} />
+        </Box>
+      </Modal>
 
-        {previewUrl && (
-          <Box sx={{ mt: 1, textAlign: 'center', position: 'relative' }}>
-            <img
-              src={previewUrl}
-              alt="Preview"
-              style={{
-                maxWidth: '100%',
-                maxHeight: '200px',
-                borderRadius: '10px',
-                border: '1px solid #ccc',
-              }}
+      <Modal open={modalEditar} onClose={() => setModalEditar(false)}>
+        <Box sx={styleModal}>
+          <Stack spacing={2}>
+            <TextField label="Nombre" value={maquinaEditando?.nombre || ''}
+              onChange={(e) => setMaquinaEditando(prev => ({ ...prev, nombre: e.target.value }))} />
+            <TextField label="Ubicación" value={maquinaEditando?.ubicacion || ''}
+              onChange={(e) => setMaquinaEditando(prev => ({ ...prev, ubicacion: e.target.value }))} />
+            <TextField select label="Estado" value={maquinaEditando?.estado || ''}
+              onChange={(e) => setMaquinaEditando(prev => ({ ...prev, estado: e.target.value }))}>
+              {estados.map((estado) => <MenuItem key={estado} value={estado}>{estado}</MenuItem>)}
+            </TextField>
+            <TextField
+              type="date"
+              label="Fecha"
+              value={dayjs(maquinaEditando?.fecha).format('YYYY-MM-DD')}
+              onChange={(e) =>
+                setMaquinaEditando((prev) => ({
+                  ...prev,
+                  fecha: dayjs(e.target.value),
+                }))
+              }
             />
-            <IconButton
-              onClick={eliminarImagen}
-              size="small"
-              sx={{
-                position: 'absolute',
-                top: 8,
-                right: 8,
-                backgroundColor: '#fff',
-                boxShadow: 1,
-              }}
-            >
-              <DeleteIcon fontSize="small" />
-            </IconButton>
-          </Box>
-        )}
-
-        <Button
-          variant="contained"
-          color="primary"
-          onClick={handleSubmit}
-          disabled={cargando}
-          fullWidth
-        >
-          {cargando ? <CircularProgress size={24} /> : 'Guardar'}
-        </Button>
-      </Stack>
+            <input type="file" accept="image/*" onChange={(e) => setNuevaImagen(e.target.files[0])} />
+            <Button variant="contained" onClick={handleGuardarEdicion}>Guardar Cambios</Button>
+          </Stack>
+        </Box>
+      </Modal>
 
       <Snackbar
-        open={notificacion.open}
-        autoHideDuration={4000}
-        onClose={() => setNotificacion((prev) => ({ ...prev, open: false }))}
+        open={mostrarMensaje}
+        autoHideDuration={3000}
+        onClose={() => setMostrarMensaje(false)}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert
-          onClose={() => setNotificacion((prev) => ({ ...prev, open: false }))}
-          severity={notificacion.tipo}
-          sx={{ width: '100%' }}
-        >
-          {notificacion.mensaje}
+        <Alert severity="success" sx={{ width: '100%' }}>
+          {mensaje}
         </Alert>
       </Snackbar>
-    </Paper>
+    </>
   );
 }
