@@ -10,6 +10,8 @@ import {
   CircularProgress,
   Box,
   IconButton,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import dayjs from 'dayjs';
@@ -28,7 +30,9 @@ export default function CrearMaquina() {
   const [imagen, setImagen] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [cargando, setCargando] = useState(false);
-  const [mensaje, setMensaje] = useState('');
+
+  const [notificacion, setNotificacion] = useState({ open: false, mensaje: '', tipo: 'success' });
+
   const inputRef = useRef();
 
   const handleChange = (e) => {
@@ -43,7 +47,7 @@ export default function CrearMaquina() {
     const archivo = e.target.files[0];
     if (archivo) {
       if (!archivo.type.startsWith('image/')) {
-        setMensaje('❌ Solo se permiten imágenes');
+        mostrarNotificacion('❌ Solo se permiten imágenes', 'error');
         return;
       }
       setImagen(archivo);
@@ -57,13 +61,20 @@ export default function CrearMaquina() {
     inputRef.current.value = null;
   };
 
+  const mostrarNotificacion = (mensaje, tipo = 'info') => {
+    setNotificacion({ open: true, mensaje, tipo });
+  };
+
   const handleSubmit = async () => {
-    setMensaje('');
-    if (!imagen) return setMensaje('⚠️ Debes subir una imagen');
+    if (!imagen) return mostrarNotificacion('⚠️ Debes subir una imagen', 'warning');
+    if (!formData.nombre || !formData.ubicacion || !formData.estado) {
+      return mostrarNotificacion('⚠️ Todos los campos son obligatorios', 'warning');
+    }
+
     setCargando(true);
 
     try {
-      // Subida a Cloudinary
+      // Subir imagen
       const imgData = new FormData();
       imgData.append('file', imagen);
 
@@ -72,39 +83,40 @@ export default function CrearMaquina() {
         body: imgData,
       });
 
-      const uploadData = await resUpload.json();
-
-      if (!resUpload.ok || !uploadData.url) {
-        console.error('❌ Error al subir imagen:', uploadData);
-        throw new Error(uploadData?.error || 'Error al subir la imagen');
+      if (!resUpload.ok) {
+        const errorText = await resUpload.text();
+        console.error('❌ Error al subir imagen:', errorText);
+        throw new Error('Error al subir la imagen. Revisa Cloudinary o el servidor.');
       }
 
-      const url = uploadData.url;
+      const uploadData = await resUpload.json();
+      if (!uploadData?.url) {
+        throw new Error('No se recibió la URL de la imagen');
+      }
 
-      // Registro en base de datos
+      // Guardar en DB
       const resMaquina = await fetch('/api/maquinas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...formData,
           fecha: formData.fecha.toISOString(),
-          imagenUrl: url,
+          imagenUrl: uploadData.url,
         }),
       });
 
       const resData = await resMaquina.json();
 
       if (resMaquina.ok) {
-        setMensaje('✅ Máquina creada correctamente');
+        mostrarNotificacion('✅ Máquina creada correctamente', 'success');
         setFormData({ nombre: '', ubicacion: '', estado: '', fecha: dayjs() });
         eliminarImagen();
       } else {
-        const errorMsg = resData?.error || '❌ Error al guardar la máquina';
-        setMensaje(errorMsg);
+        throw new Error(resData?.error || '❌ Error al guardar la máquina');
       }
     } catch (err) {
       console.error(err);
-      setMensaje('❌ Error inesperado: ' + err.message);
+      mostrarNotificacion(`❌ Error: ${err.message}`, 'error');
     } finally {
       setCargando(false);
     }
@@ -194,7 +206,21 @@ export default function CrearMaquina() {
         {cargando ? <CircularProgress size={24} /> : 'Guardar'}
       </Button>
 
-      {mensaje && <Typography>{mensaje}</Typography>}
+      {/* Snackbar de notificaciones */}
+      <Snackbar
+        open={notificacion.open}
+        autoHideDuration={4000}
+        onClose={() => setNotificacion((prev) => ({ ...prev, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setNotificacion((prev) => ({ ...prev, open: false }))}
+          severity={notificacion.tipo}
+          sx={{ width: '100%' }}
+        >
+          {notificacion.mensaje}
+        </Alert>
+      </Snackbar>
     </Stack>
   );
 }

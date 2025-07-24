@@ -1,6 +1,12 @@
+// app/api/upload/route.js
+
 import { v2 as cloudinary } from 'cloudinary';
 import { NextResponse } from 'next/server';
 import { Readable } from 'stream';
+
+export const config = {
+  runtime: 'nodejs', // ⚠️ necesario para evitar errores con streams y formData
+};
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -24,20 +30,20 @@ export async function POST(req) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // Promesa para subir a Cloudinary desde stream (1 sola vez)
     const subirACloudinary = () =>
       new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          { folder: 'estado_maquinas' },
+          { folder: 'estado_maquinas', resource_type: 'image' },
           (error, result) => {
             if (error) {
-              console.error('❌ Cloudinary upload error:', error);
+              console.error('❌ Cloudinary error:', error);
               reject(error);
             } else {
               resolve(result);
             }
           }
         );
+
         Readable.from(buffer).pipe(stream);
       });
 
@@ -45,7 +51,12 @@ export async function POST(req) {
 
     return NextResponse.json({ url: resultado.secure_url });
   } catch (error) {
-    console.error('❌ ERROR EN /api/upload:', error);
+    console.error('❌ ERROR EN /api/upload:', {
+      mensaje: error.message,
+      nombre: error.name,
+      codigo: error.http_code || 500,
+    });
+
     return NextResponse.json(
       { error: 'Error inesperado', detalles: error.message },
       { status: 500 }
