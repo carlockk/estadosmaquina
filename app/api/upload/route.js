@@ -2,24 +2,14 @@
 
 import { v2 as cloudinary } from 'cloudinary';
 import { NextResponse } from 'next/server';
-import { Readable } from 'stream';
 
 export const runtime = 'nodejs';
-
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
-
-// Loguear después de configurar
-console.log('🔍 Entorno Cloudinary:', {
-  name: process.env.CLOUDINARY_CLOUD_NAME,
-  key: process.env.CLOUDINARY_API_KEY,
-  secret: !!process.env.CLOUDINARY_API_SECRET, // Solo muestra true/false
-});
-
 
 export async function POST(req) {
   try {
@@ -35,28 +25,15 @@ export async function POST(req) {
       return NextResponse.json({ error: 'No se recibió ningún archivo' }, { status: 400 });
     }
 
-    const buffer = Buffer.from(await file.arrayBuffer());
+    const arrayBuffer = await file.arrayBuffer();
+    const base64 = Buffer.from(arrayBuffer).toString('base64');
+    const dataUri = `data:${file.type};base64,${base64}`;
 
-    const subirACloudinary = () =>
-      new Promise((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: 'estado_maquinas', resource_type: 'image' },
-          (error, result) => {
-            if (error) {
-              console.error('❌ Cloudinary error:', error);
-              reject(error);
-            } else {
-              resolve(result);
-            }
-          }
-        );
+    const result = await cloudinary.uploader.upload(dataUri, {
+      folder: 'estado_maquinas',
+    });
 
-        Readable.from(buffer).pipe(stream);
-      });
-
-    const resultado = await subirACloudinary();
-
-    return NextResponse.json({ url: resultado.secure_url });
+    return NextResponse.json({ url: result.secure_url });
   } catch (error) {
     console.error('❌ ERROR EN /api/upload:', {
       mensaje: error.message,
@@ -65,7 +42,7 @@ export async function POST(req) {
     });
 
     return NextResponse.json(
-      { error: 'Error inesperado', detalles: error.message },
+      { error: 'Error inesperado al subir la imagen', detalles: error.message },
       { status: 500 }
     );
   }
