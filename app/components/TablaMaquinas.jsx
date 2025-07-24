@@ -48,7 +48,7 @@ export default function TablaMaquinas({ refrescar }) {
     if (Notification.permission !== 'granted') {
       Notification.requestPermission();
     }
-  }, [refrescar]); // 🔁 Se recarga cuando cambia "refrescar"
+  }, [refrescar]);
 
   const handleEliminar = async (id) => {
     const clave = prompt('Ingresa la clave para eliminar:');
@@ -160,17 +160,23 @@ export default function TablaMaquinas({ refrescar }) {
                   <TableCell>{fila.estado}</TableCell>
                   <TableCell>{new Date(fila.fecha).toLocaleDateString()}</TableCell>
                   <TableCell>
-                    <img
-                      src={fila.imagenUrl}
-                      alt="mini"
-                      style={{
-                        width: 60,
-                        height: 60,
-                        cursor: 'pointer',
-                        objectFit: 'cover',
-                      }}
-                      onClick={() => setModalImagen(fila.imagenUrl)}
-                    />
+                    {fila.imagenUrl ? (
+                      <img
+                        src={fila.imagenUrl}
+                        alt="mini"
+                        style={{
+                          width: 60,
+                          height: 60,
+                          cursor: 'pointer',
+                          objectFit: 'cover',
+                          borderRadius: 6,
+                          boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+                        }}
+                        onClick={() => setModalImagen(fila.imagenUrl)}
+                      />
+                    ) : (
+                      <span style={{ fontSize: 12, color: '#888' }}>Sin imagen</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <IconButton color="primary" onClick={() => handleEditar(fila)}>
@@ -200,7 +206,14 @@ export default function TablaMaquinas({ refrescar }) {
           <img
             src={modalImagen}
             alt="ampliada"
-            style={{ width: '100%', maxHeight: '80vh', objectFit: 'contain' }}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '80vh',
+              display: 'block',
+              margin: 'auto',
+              borderRadius: 8,
+              boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+            }}
           />
         </Box>
       </Modal>
