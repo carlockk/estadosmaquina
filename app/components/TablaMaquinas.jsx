@@ -92,16 +92,17 @@ export default function TablaMaquinas({ refrescar }) {
     let urlFinal = imagenUrl;
 
     if (nuevaImagen) {
-      const buffer = await nuevaImagen.arrayBuffer();
-      const base64 = Buffer.from(buffer).toString('base64');
-      const dataUri = `data:${nuevaImagen.type};base64,${base64}`;
+      const formData = new FormData();
+      formData.append('file', nuevaImagen);
 
       const publicId = extraerPublicId(imagenUrl);
+      if (publicId) {
+        formData.append('public_id', publicId);
+      }
 
       const uploadRes = await fetch('/api/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ dataUri, publicId }),
+        body: formData,
       });
 
       const uploadData = await uploadRes.json();

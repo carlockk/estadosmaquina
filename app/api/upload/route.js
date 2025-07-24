@@ -1,7 +1,6 @@
 // app/api/upload/route.js
 import { v2 as cloudinary } from 'cloudinary';
 import { NextResponse } from 'next/server';
-import { Readable } from 'stream';
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -18,7 +17,7 @@ export async function POST(req) {
 
     const formData = await req.formData();
     const file = formData.get('file');
-    const publicId = formData.get('public_id'); // viene desde edición si aplica
+    let publicId = formData.get('public_id'); // puede venir o no
 
     if (!file) {
       return NextResponse.json({ error: 'No se recibió ningún archivo' }, { status: 400 });
@@ -26,15 +25,12 @@ export async function POST(req) {
 
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-
     const dataUri = `data:${file.type};base64,${buffer.toString('base64')}`;
 
-    // Configuración para subida
+    // Si viene un public_id, lo limpiamos y usamos para sobrescribir
     const uploadOptions = publicId
       ? {
-          public_id: publicId.startsWith('estado_maquinas/')
-            ? publicId
-            : `estado_maquinas/${publicId}`,
+          public_id: `estado_maquinas/${publicId.trim().replace(/\s+/g, '_').toLowerCase()}`,
           overwrite: true,
         }
       : {
@@ -56,9 +52,6 @@ export async function POST(req) {
       codigo: error.http_code || 500,
     });
 
-    return NextResponse.json(
-      { error: 'Error al subir la imagen' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Error al subir la imagen' }, { status: 500 });
   }
 }
