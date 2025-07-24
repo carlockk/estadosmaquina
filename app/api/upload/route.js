@@ -13,6 +13,14 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
+// Loguear después de configurar
+console.log('🔍 Entorno Cloudinary:', {
+  name: process.env.CLOUDINARY_CLOUD_NAME,
+  key: process.env.CLOUDINARY_API_KEY,
+  secret: !!process.env.CLOUDINARY_API_SECRET, // Solo muestra true/false
+});
+
+
 export async function POST(req) {
   try {
     const contentType = req.headers.get('content-type');
