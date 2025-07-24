@@ -4,9 +4,8 @@ import { v2 as cloudinary } from 'cloudinary';
 import { NextResponse } from 'next/server';
 import { Readable } from 'stream';
 
-export const config = {
-  runtime: 'nodejs', // ⚠️ necesario para evitar errores con streams y formData
-};
+export const runtime = 'nodejs';
+
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
