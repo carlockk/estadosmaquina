@@ -3,7 +3,8 @@
 import {
   Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, Paper, TextField, Pagination, Modal, Box,
-  IconButton, Button, MenuItem, Stack, Snackbar, Alert, useMediaQuery
+  IconButton, Button, MenuItem, Stack, Snackbar, Alert,
+  Typography, useMediaQuery
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import EditIcon from '@mui/icons-material/Edit';
@@ -19,8 +20,8 @@ const styleModal = {
   maxWidth: 500,
   bgcolor: 'background.paper',
   boxShadow: 24,
-  p: 4,
-  borderRadius: 3,
+  p: 3,
+  borderRadius: 2,
 };
 
 const estados = ['Activa', 'En Mantenimiento', 'Fuera de Servicio'];
@@ -53,10 +54,14 @@ export default function TablaMaquinas({ refrescar }) {
   }, [refrescar]);
 
   const handleEliminar = async (id) => {
-    const clave = prompt('🔒 Ingresa la clave para eliminar:');
-    if (clave !== '7926') return alert('❌ Clave incorrecta');
+    const clave = prompt('Ingresa la clave para eliminar:');
+    if (clave !== '7926') {
+      alert('❌ Clave incorrecta');
+      return;
+    }
 
-    if (!confirm('¿Seguro que deseas eliminar esta máquina?')) return;
+    const confirmacion = confirm('¿Seguro que deseas eliminar esta máquina?');
+    if (!confirmacion) return;
 
     const res = await fetch(`/api/maquinas/${id}`, { method: 'DELETE' });
     if (res.ok) {
@@ -76,7 +81,8 @@ export default function TablaMaquinas({ refrescar }) {
   const extraerPublicId = (url) => {
     try {
       const partes = url.split('/upload/');
-      return partes[1]?.split('.')[0];
+      if (partes.length < 2) return null;
+      return partes[1].split('.')[0]; // sin extensión
     } catch {
       return null;
     }
@@ -84,6 +90,7 @@ export default function TablaMaquinas({ refrescar }) {
 
   const handleGuardarEdicion = async () => {
     const { _id, nombre, ubicacion, estado, fecha, imagenUrl } = maquinaEditando;
+
     let urlFinal = imagenUrl;
 
     if (nuevaImagen) {
@@ -98,25 +105,29 @@ export default function TablaMaquinas({ refrescar }) {
       });
 
       const uploadData = await uploadRes.json();
+
       if (uploadRes.ok && uploadData?.url) {
         urlFinal = uploadData.url;
       } else {
-        return alert('❌ Error al subir imagen');
+        alert('❌ Error al reemplazar la imagen');
+        return;
       }
     }
 
     const res = await fetch(`/api/maquinas/${_id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        nombre, ubicacion, estado,
+        nombre,
+        ubicacion,
+        estado,
         fecha: fecha.toISOString(),
         imagenUrl: urlFinal,
       }),
+      headers: { 'Content-Type': 'application/json' },
     });
 
     if (res.ok) {
-      setMensaje('✅ Máquina actualizada');
+      setMensaje('✅ Actualizado correctamente');
       setMostrarMensaje(true);
       setModalEditar(false);
       cargarMaquinas();
@@ -131,7 +142,8 @@ export default function TablaMaquinas({ refrescar }) {
   );
 
   const totalPaginas = Math.ceil(filtradas.length / porPagina);
-  const paginadas = filtradas.slice((pagina - 1) * porPagina, pagina * porPagina);
+  const inicio = (pagina - 1) * porPagina;
+  const paginadas = filtradas.slice(inicio, inicio + porPagina);
 
   return (
     <>
@@ -143,32 +155,7 @@ export default function TablaMaquinas({ refrescar }) {
         sx={{ my: 3 }}
       />
 
-      {isMobile ? (
-        <Stack spacing={2}>
-          {paginadas.map((fila) => (
-            <Box key={fila._id} sx={{
-              p: 2, border: '1px solid #ddd', borderRadius: 3, boxShadow: 1, bgcolor: '#fff'
-            }}>
-              <Typography><strong>Máquina:</strong> {fila.nombre}</Typography>
-              <Typography><strong>Ubicación:</strong> {fila.ubicacion}</Typography>
-              <Typography><strong>Estado:</strong> {fila.estado}</Typography>
-              <Typography><strong>Fecha:</strong> {new Date(fila.fecha).toLocaleDateString()}</Typography>
-              {fila.imagenUrl && (
-                <img
-                  src={fila.imagenUrl}
-                  alt="mini"
-                  style={{ width: '100%', marginTop: 10, borderRadius: 6 }}
-                  onClick={() => setModalImagen(fila.imagenUrl)}
-                />
-              )}
-              <Stack direction="row" spacing={1} mt={2}>
-                <Button variant="outlined" size="small" onClick={() => handleEditar(fila)}>Editar</Button>
-                <Button variant="outlined" size="small" color="error" onClick={() => handleEliminar(fila._id)}>Eliminar</Button>
-              </Stack>
-            </Box>
-          ))}
-        </Stack>
-      ) : (
+      {!isMobile ? (
         <TableContainer component={Paper}>
           <Table>
             <TableHead>
@@ -209,6 +196,31 @@ export default function TablaMaquinas({ refrescar }) {
             </TableBody>
           </Table>
         </TableContainer>
+      ) : (
+        <Stack spacing={2}>
+          {paginadas.map((fila) => (
+            <Box key={fila._id} sx={{
+              p: 2, border: '1px solid #ccc', borderRadius: 2, boxShadow: 1, bgcolor: '#fafafa'
+            }}>
+              <Typography><strong>Máquina:</strong> {fila.nombre}</Typography>
+              <Typography><strong>Ubicación:</strong> {fila.ubicacion}</Typography>
+              <Typography><strong>Estado:</strong> {fila.estado}</Typography>
+              <Typography><strong>Fecha:</strong> {new Date(fila.fecha).toLocaleDateString()}</Typography>
+              {fila.imagenUrl && (
+                <img
+                  src={fila.imagenUrl}
+                  alt="mini"
+                  style={{ width: '100%', marginTop: 8, borderRadius: 6 }}
+                  onClick={() => setModalImagen(fila.imagenUrl)}
+                />
+              )}
+              <Box sx={{ mt: 1 }}>
+                <Button size="small" onClick={() => handleEditar(fila)}>Editar</Button>
+                <Button size="small" color="error" onClick={() => handleEliminar(fila._id)}>Eliminar</Button>
+              </Box>
+            </Box>
+          ))}
+        </Stack>
       )}
 
       <Pagination
@@ -247,7 +259,9 @@ export default function TablaMaquinas({ refrescar }) {
               }
             />
             <input type="file" accept="image/*" onChange={(e) => setNuevaImagen(e.target.files[0])} />
-            <Button variant="contained" onClick={handleGuardarEdicion}>Guardar Cambios</Button>
+            <Button variant="contained" onClick={handleGuardarEdicion}>
+              Guardar Cambios
+            </Button>
           </Stack>
         </Box>
       </Modal>
