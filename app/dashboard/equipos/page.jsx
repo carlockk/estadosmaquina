@@ -3,8 +3,9 @@
 import { useSearchParams } from 'next/navigation';
 import TablaMaquinas from '../../components/TablaMaquinas';
 import { Box, Typography } from '@mui/material';
+import { Suspense } from 'react';
 
-export default function EquiposPorCategoriaPage() {
+function EquiposPorCategoriaContent() {
   const searchParams = useSearchParams();
   const categoria = searchParams.get('categoria') || 'Equipos';
 
@@ -15,5 +16,13 @@ export default function EquiposPorCategoriaPage() {
       </Typography>
       <TablaMaquinas categoriaSeleccionada={categoria} />
     </Box>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div>Cargando equipos...</div>}>
+      <EquiposPorCategoriaContent />
+    </Suspense>
   );
 }
