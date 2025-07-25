@@ -1,3 +1,4 @@
+// dashboard/categorias/page.jsx
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
@@ -112,18 +113,37 @@ function GestionCategoriasContent() {
   return (
     <Box sx={{ p: 4 }}>
       <Typography variant="h5" gutterBottom>Gestión de Categorías</Typography>
+
       <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
-        <TextField label="Nueva categoría" value={nueva} onChange={(e) => setNueva(e.target.value)} />
+        <TextField
+          label="Nueva categoría"
+          value={nueva}
+          onChange={(e) => setNueva(e.target.value)}
+        />
         <Button variant="contained" onClick={crearCategoria}>Crear</Button>
       </Stack>
+
       <Stack spacing={2}>
         {categorias.map((cat) => (
-          <Box key={cat} sx={{ p: 2, border: '1px solid #ccc', borderRadius: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', bgcolor: '#f9f9f9' }}>
+          <Box
+            key={cat}
+            sx={{
+              p: 2,
+              border: '1px solid #ccc',
+              borderRadius: 2,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              bgcolor: '#f9f9f9'
+            }}
+          >
             {editando?.old === cat ? (
               <>
                 <TextField
                   value={editando.new}
-                  onChange={(e) => setEditando((prev) => ({ ...prev, new: e.target.value }))}
+                  onChange={(e) =>
+                    setEditando((prev) => ({ ...prev, new: e.target.value }))
+                  }
                   size="small"
                 />
                 <Button variant="contained" onClick={editarCategoria}>Guardar</Button>
@@ -132,14 +152,19 @@ function GestionCategoriasContent() {
               <>
                 <Typography>{cat}</Typography>
                 <Box>
-                  <IconButton onClick={() => setEditando({ old: cat, new: cat })}><EditIcon /></IconButton>
-                  <IconButton color="error" onClick={() => eliminarCategoria(cat)}><DeleteIcon /></IconButton>
+                  <IconButton onClick={() => setEditando({ old: cat, new: cat })}>
+                    <EditIcon />
+                  </IconButton>
+                  <IconButton color="error" onClick={() => eliminarCategoria(cat)}>
+                    <DeleteIcon />
+                  </IconButton>
                 </Box>
               </>
             )}
           </Box>
         ))}
       </Stack>
+
       <Snackbar
         open={mensaje.open}
         autoHideDuration={3000}
@@ -154,7 +179,7 @@ function GestionCategoriasContent() {
 
 export default function Page() {
   return (
-    <Suspense fallback={<div>Cargando gestión de categorías...</div>}>
+    <Suspense fallback={<div>Cargando categorías...</div>}>
       <GestionCategoriasContent />
     </Suspense>
   );
