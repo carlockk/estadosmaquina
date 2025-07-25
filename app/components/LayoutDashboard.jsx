@@ -6,7 +6,7 @@ import {
   List, ListItem, ListItemButton, ListItemText
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
-import { usePathname, useSearchParams, useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 
 const drawerWidth = 240;
 
@@ -14,9 +14,12 @@ export default function LayoutDashboard({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [categorias, setCategorias] = useState([]);
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const router = useRouter();
-  const categoriaActual = searchParams.get('categoria');
+
+  // ✅ Alternativa segura a useSearchParams:
+  const categoriaActual = typeof window !== 'undefined'
+    ? decodeURIComponent(new URLSearchParams(window.location.search).get('categoria') || '')
+    : '';
 
   const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
 
@@ -41,26 +44,25 @@ export default function LayoutDashboard({ children }) {
         Menú
       </Typography>
       <List>
-        {/* 🔵 Botón fijo: Crear Elemento */}
         <ListItem disablePadding>
           <ListItemButton onClick={() => router.push('/dashboard/crear')}>
             <ListItemText primary="Crear Elemento" />
           </ListItemButton>
         </ListItem>
 
-        {/* 🔁 Categorías dinámicas */}
         {categorias.map((cat) => (
           <ListItem key={cat} disablePadding>
             <ListItemButton
               selected={categoriaActual === cat}
-              onClick={() => router.push(`/dashboard/equipos?categoria=${encodeURIComponent(cat)}`)}
+              onClick={() =>
+                router.push(`/dashboard/equipos?categoria=${encodeURIComponent(cat)}`)
+              }
             >
               <ListItemText primary={cat} />
             </ListItemButton>
           </ListItem>
         ))}
 
-        {/* ⚙️ Sección de gestión */}
         <ListItem disablePadding>
           <ListItemButton onClick={() => router.push('/dashboard/categorias')}>
             <ListItemText primary="Categorías" />
@@ -95,7 +97,6 @@ export default function LayoutDashboard({ children }) {
         sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
         aria-label="menú lateral"
       >
-        {/* Menú móvil */}
         <Drawer
           variant="temporary"
           open={mobileOpen}
@@ -109,7 +110,6 @@ export default function LayoutDashboard({ children }) {
           {drawer}
         </Drawer>
 
-        {/* Menú escritorio */}
         <Drawer
           variant="permanent"
           sx={{
