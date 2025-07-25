@@ -6,6 +6,7 @@ const MaquinaSchema = new mongoose.Schema({
   estado: { type: String, enum: ['Activa', 'En Mantenimiento', 'Fuera de Servicio'], required: true },
   fecha: { type: Date, required: true },
   imagenUrl: { type: String, required: true },
+  categoria: { type: String, required: true }, // ✅ añadido
 }, {
   timestamps: true,
 });

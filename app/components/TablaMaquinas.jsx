@@ -24,9 +24,9 @@ const styleModal = {
   borderRadius: 2,
 };
 
-const estados = ['Activa', 'En Mantenimiento', 'Fuera de Servicio'];
+const estados = ['Activa', 'En Mantenimiento', 'Fuera de Servicio', 'Por Desechar'];
 
-export default function TablaMaquinas({ refrescar }) {
+export default function TablaMaquinas({ refrescar, categoriaSeleccionada }) {
   const isMobile = useMediaQuery('(max-width:600px)');
   const [maquinas, setMaquinas] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -37,6 +37,7 @@ export default function TablaMaquinas({ refrescar }) {
   const [nuevaImagen, setNuevaImagen] = useState(null);
   const [mensaje, setMensaje] = useState('');
   const [mostrarMensaje, setMostrarMensaje] = useState(false);
+  const [categorias, setCategorias] = useState([]);
   const notificadas = useRef(new Set());
   const porPagina = 10;
 
@@ -46,12 +47,42 @@ export default function TablaMaquinas({ refrescar }) {
     setMaquinas(data);
   };
 
+  const cargarCategorias = async () => {
+    const res = await fetch('/api/categorias');
+    const data = await res.json();
+    setCategorias(data);
+  };
+
   useEffect(() => {
     cargarMaquinas();
+    cargarCategorias();
     if (Notification.permission !== 'granted') {
       Notification.requestPermission();
     }
   }, [refrescar]);
+
+  // 🚨 Notificación automática si estado es "Por Desechar" y han pasado 2 días
+  useEffect(() => {
+    const ahora = dayjs();
+    maquinas.forEach((m) => {
+      const estadoLower = (m.estado || '').toLowerCase();
+      const fecha = m.fecha ? dayjs(m.fecha) : null;
+
+      if (
+        estadoLower.includes('por desechar') &&
+        fecha &&
+        ahora.diff(fecha, 'day') >= 2 &&
+        !notificadas.current.has(m._id)
+      ) {
+        if (Notification.permission === 'granted') {
+          new Notification('⚠️ Recordatorio de mantenimiento', {
+            body: `La máquina "${m.nombre}" lleva más de 2 días marcada como "por desechar".`,
+          });
+          notificadas.current.add(m._id);
+        }
+      }
+    });
+  }, [maquinas]);
 
   const handleEliminar = async (id) => {
     const clave = prompt('Ingresa la clave para eliminar:');
@@ -82,14 +113,14 @@ export default function TablaMaquinas({ refrescar }) {
     try {
       const partes = url.split('/upload/');
       if (partes.length < 2) return null;
-      return partes[1].split('.')[0]; // sin extensión
+      return partes[1].split('.')[0];
     } catch {
       return null;
     }
   };
 
   const handleGuardarEdicion = async () => {
-    const { _id, nombre, ubicacion, estado, fecha, imagenUrl } = maquinaEditando;
+    const { _id, nombre, ubicacion, estado, fecha, imagenUrl, categoria } = maquinaEditando;
 
     let urlFinal = imagenUrl;
 
@@ -122,6 +153,7 @@ export default function TablaMaquinas({ refrescar }) {
         estado,
         fecha: fecha.toISOString(),
         imagenUrl: urlFinal,
+        categoria
       }),
       headers: { 'Content-Type': 'application/json' },
     });
@@ -137,8 +169,9 @@ export default function TablaMaquinas({ refrescar }) {
   };
 
   const filtradas = maquinas.filter((m) =>
-    m.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-    m.ubicacion.toLowerCase().includes(busqueda.toLowerCase())
+    (m.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+     m.ubicacion.toLowerCase().includes(busqueda.toLowerCase())) &&
+    (!categoriaSeleccionada || (m.categoria || '').toLowerCase() === categoriaSeleccionada.toLowerCase())
   );
 
   const totalPaginas = Math.ceil(filtradas.length / porPagina);
@@ -146,7 +179,7 @@ export default function TablaMaquinas({ refrescar }) {
   const paginadas = filtradas.slice(inicio, inicio + porPagina);
 
   return (
-    <>
+    <Box sx={{ px: { xs: 2, sm: 3, md: 6 }, mb: 5 }}>
       <TextField
         fullWidth
         label="Buscar máquina o ubicación"
@@ -155,7 +188,11 @@ export default function TablaMaquinas({ refrescar }) {
         sx={{ my: 3 }}
       />
 
-      {!isMobile ? (
+      {filtradas.length === 0 ? (
+        <Typography variant="body1" color="text.secondary">
+          No se registran elementos en esta categoría.
+        </Typography>
+      ) : !isMobile ? (
         <TableContainer component={Paper}>
           <Table>
             <TableHead>
@@ -164,6 +201,7 @@ export default function TablaMaquinas({ refrescar }) {
                 <TableCell>Ubicación</TableCell>
                 <TableCell>Estado</TableCell>
                 <TableCell>Fecha</TableCell>
+                <TableCell>Categoría</TableCell>
                 <TableCell>Imagen</TableCell>
                 <TableCell>Acciones</TableCell>
               </TableRow>
@@ -175,6 +213,7 @@ export default function TablaMaquinas({ refrescar }) {
                   <TableCell>{fila.ubicacion}</TableCell>
                   <TableCell>{fila.estado}</TableCell>
                   <TableCell>{new Date(fila.fecha).toLocaleDateString()}</TableCell>
+                  <TableCell>{fila.categoria || 'Equipos'}</TableCell>
                   <TableCell>
                     <img
                       src={fila.imagenUrl}
@@ -199,13 +238,12 @@ export default function TablaMaquinas({ refrescar }) {
       ) : (
         <Stack spacing={2}>
           {paginadas.map((fila) => (
-            <Box key={fila._id} sx={{
-              p: 2, border: '1px solid #ccc', borderRadius: 2, boxShadow: 1, bgcolor: '#fafafa'
-            }}>
+            <Box key={fila._id} sx={{ p: 2, border: '1px solid #ccc', borderRadius: 2, boxShadow: 1, bgcolor: '#fafafa' }}>
               <Typography><strong>Máquina:</strong> {fila.nombre}</Typography>
               <Typography><strong>Ubicación:</strong> {fila.ubicacion}</Typography>
               <Typography><strong>Estado:</strong> {fila.estado}</Typography>
               <Typography><strong>Fecha:</strong> {new Date(fila.fecha).toLocaleDateString()}</Typography>
+              <Typography><strong>Categoría:</strong> {fila.categoria || 'Equipos'}</Typography>
               {fila.imagenUrl && (
                 <img
                   src={fila.imagenUrl}
@@ -223,19 +261,23 @@ export default function TablaMaquinas({ refrescar }) {
         </Stack>
       )}
 
-      <Pagination
-        count={totalPaginas}
-        page={pagina}
-        onChange={(_, value) => setPagina(value)}
-        sx={{ mt: 3, justifyContent: 'center', display: 'flex' }}
-      />
+      {filtradas.length > 0 && (
+        <Pagination
+          count={totalPaginas}
+          page={pagina}
+          onChange={(_, value) => setPagina(value)}
+          sx={{ mt: 3, justifyContent: 'center', display: 'flex' }}
+        />
+      )}
 
+      {/* Modal imagen */}
       <Modal open={!!modalImagen} onClose={() => setModalImagen('')}>
         <Box sx={styleModal}>
           <img src={modalImagen} alt="ampliada" style={{ width: '100%', borderRadius: 6 }} />
         </Box>
       </Modal>
 
+      {/* Modal editar */}
       <Modal open={modalEditar} onClose={() => setModalEditar(false)}>
         <Box sx={styleModal}>
           <Stack spacing={2}>
@@ -258,6 +300,21 @@ export default function TablaMaquinas({ refrescar }) {
                 }))
               }
             />
+            <TextField
+              select
+              label="Categoría"
+              value={maquinaEditando?.categoria || ''}
+              onChange={(e) =>
+                setMaquinaEditando((prev) => ({
+                  ...prev,
+                  categoria: e.target.value,
+                }))
+              }
+            >
+              {categorias.map((cat) => (
+                <MenuItem key={cat} value={cat}>{cat}</MenuItem>
+              ))}
+            </TextField>
             <input type="file" accept="image/*" onChange={(e) => setNuevaImagen(e.target.files[0])} />
             <Button variant="contained" onClick={handleGuardarEdicion}>
               Guardar Cambios
@@ -266,6 +323,7 @@ export default function TablaMaquinas({ refrescar }) {
         </Box>
       </Modal>
 
+      {/* Snackbar */}
       <Snackbar
         open={mostrarMensaje}
         autoHideDuration={3000}
@@ -276,6 +334,6 @@ export default function TablaMaquinas({ refrescar }) {
           {mensaje}
         </Alert>
       </Snackbar>
-    </>
+    </Box>
   );
 }

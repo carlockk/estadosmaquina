@@ -1,4 +1,3 @@
-// app/api/maquinas/route.js
 import { connectDB } from '@/lib/mongo';
 import Maquina from '@/models/Maquina';
 import { NextResponse } from 'next/server';
